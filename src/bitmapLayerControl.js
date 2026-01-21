@@ -63,7 +63,7 @@ function paintCanvas(canvas, type) {
     const ctx = canvas.getContext('2d');
     const imgData = ctx.createImageData(RESOLUTION, RESOLUTION);
     const data = imgData.data;
-    
+
     // Limits for math space
     const limits = { sombrero: 15, cassini: 2.5, monkey: 2.0 };
     const bound = limits[type];
@@ -76,7 +76,7 @@ function paintCanvas(canvas, type) {
             const x = -bound + (px * step);
             const z = mathFunctions[type](x, y);
             const [r, g, b, a] = colorScales[type](z);
-            
+
             data[idx++] = r;
             data[idx++] = g;
             data[idx++] = b;
@@ -204,7 +204,7 @@ class NativeBitmapControl {
     onAdd(map) {
         this.map = map;
         this.canvasID = 'native-math-canvas';
-        
+
         // 1. Create Hidden Canvas (The Data Source)
         this.canvas = document.createElement('canvas');
         this.canvas.id = this.canvasID;
@@ -222,7 +222,7 @@ class NativeBitmapControl {
             type: 'canvas',
             canvas: this.canvasID,
             coordinates: COORDINATES_QUAD,
-            animate: false 
+            animate: false
         });
 
         this.map.addLayer({
@@ -240,7 +240,7 @@ class NativeBitmapControl {
         this.container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
         this.container.style.padding = '10px';
         this.container.style.backgroundColor = 'white';
-        
+
         const title = document.createElement('div');
         title.innerText = "Native Raster Source";
         title.style.fontWeight = 'bold';
@@ -253,7 +253,7 @@ class NativeBitmapControl {
             radio.name = 'native_bitmap';
             radio.id = 'native_' + id;
             radio.checked = idx === 0;
-            
+
             // On Change: Repaint Canvas -> Trigger Map Update
             radio.addEventListener('change', () => this.updateCanvas(id));
 
@@ -290,11 +290,114 @@ class NativeBitmapControl {
         if (source) {
             // .play() starts the animation loop, .pause() stops it. 
             // We just want one frame.
-            source.play(); 
+            source.play();
             //this.map.triggerRepaint();
             setTimeout(() => source.pause(), 100); // Stop it again to save CPU
         }
     }
 }
 
-export { BitmapControl, NativeBitmapControl };
+class RemoteWeatherControl {
+    onAdd(map) {
+        this.map = map;
+        this.canvasID = 'weather-canvas';
+
+        // 1. Setup Canvas (Hidden)
+        this.canvas = document.createElement('canvas');
+        this.canvas.id = this.canvasID;
+        this.canvas.width = 1000; // Must match server dimensions
+        this.canvas.height = 1000;
+        this.canvas.style.display = 'none';
+        document.body.appendChild(this.canvas);
+
+        // 2. Add Source/Layer immediately (initially empty or placeholder)
+        this.map.addSource('weather-source', {
+            type: 'canvas',
+            canvas: this.canvasID,
+            coordinates: [[112, 35], [113, 35], [113, 34], [112, 34]], // Your Bounds
+            animate: false
+        });
+
+        this.map.addLayer({
+            id: 'weather-layer',
+            type: 'raster',
+            source: 'weather-source',
+            paint: { 'raster-opacity': 0.8, 'raster-resampling': 'linear' }
+        });
+
+        // 3. Create UI Button to Load Data
+        this.container = document.createElement('div');
+        this.container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+        this.container.style.padding = '10px';
+        this.container.style.backgroundColor = 'white';
+
+        const btn = document.createElement('button');
+        btn.textContent = '☁️ Load Weather';
+        btn.style.width = '100px';
+        btn.style.padding = '10px 30px';
+        btn.style.cursor = 'pointer';
+        btn.onclick = () => this.loadData();
+        this.container.appendChild(btn);
+
+        return this.container;
+    }
+
+    onRemove() {
+        // Cleanup DOM and Map
+        this.container.remove();
+        this.map.removeLayer('weather-layer');
+        this.map.removeSource('weather-source');
+        document.getElementById(this.canvasID).remove();
+        this.map = undefined;
+    }
+
+    async loadData() {
+        // 1. Fetch Binary Data
+        const response = await fetch('http://localhost:8000/weather-data');
+        const buffer = await response.arrayBuffer();
+
+        // 2. Create View (Zero-Copy)
+        // This is the raw array of 1,000,000 floats
+        const data = new Float32Array(buffer);
+
+        // 3. Paint to Canvas (Client-side Color Mapping)
+        this.paintCanvas(data);
+
+        // 4. Update Map
+        const source = this.map.getSource('weather-source');
+        if (source) { source.play(); setTimeout(() => source.pause(), 100); }
+    }
+
+    paintCanvas(data) {
+        const ctx = this.canvas.getContext('2d');
+        const imgData = ctx.createImageData(1000, 1000); // 1000x1000
+        const pixels = imgData.data;
+
+        for (let i = 0; i < data.length; i++) {
+            const val = data[i]; // The raw temperature value
+
+            // Example Color Map: -0.5 (Blue) to 0.5 (Red)
+            // You can change this logic instantly without re-fetching data!
+            let r = 0, g = 0, b = 0, a = 255;
+
+            if (val < 0) {
+                // Blue Gradient
+                b = 255;
+                r = Math.min(255, (val + 1) * 255);
+            } else {
+                // Red Gradient
+                r = 255;
+                b = Math.max(0, 255 - (val * 500));
+            }
+
+            const pIdx = i * 4;
+            pixels[pIdx] = r;
+            pixels[pIdx + 1] = g;
+            pixels[pIdx + 2] = b;
+            pixels[pIdx + 3] = 200; // Alpha
+        }
+        ctx.putImageData(imgData, 0, 0);
+    }
+}
+
+export { BitmapControl, NativeBitmapControl, RemoteWeatherControl };

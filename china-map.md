@@ -43,3 +43,9 @@ Use `tile-join` (which comes installed with tippecanoe) to smash them together. 
 cd ..
 tile-join -o map-china.pmtiles china.mbtiles province/provinces_boundary.mbtiles province/provinces.mbtiles citys/citys.mbtiles
 ```
+
+start http server which support http-range
+```bash
+# start server at http://localhost:8080
+npx http-server --cors
+```

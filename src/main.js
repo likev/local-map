@@ -10,7 +10,7 @@ import { generateGraticuleLines } from './graticule.js';
 
 import { MathLayerControl } from './mathLayerControl.js';
 import { ProjectionControl } from './projectionControl.js';
-import { BitmapControl, NativeBitmapControl } from './bitmapLayerControl.js';
+import { BitmapControl, NativeBitmapControl, RemoteWeatherControl } from './bitmapLayerControl.js';
 
 // 1. Initiate the PMTiles Protocol
 const protocol = new Protocol();
@@ -163,6 +163,8 @@ map.on('load', () => {
     //map.addControl(deckOverlayBitmap);
 
     // Add the native control
-    const nativeControl = new NativeBitmapControl();
-    map.addControl(nativeControl, 'top-right');
+    //const nativeControl = new NativeBitmapControl();
+    //map.addControl(nativeControl, 'top-right');
+    const remoteWeatherControl = new RemoteWeatherControl();
+    map.addControl(remoteWeatherControl, 'top-right');
 })
