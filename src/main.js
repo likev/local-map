@@ -10,7 +10,7 @@ import { generateGraticuleLines } from './graticule.js';
 
 import { MathLayerControl } from './mathLayerControl.js';
 import { ProjectionControl } from './projectionControl.js';
-import { BitmapControl, NativeBitmapControl, RemoteWeatherControl } from './bitmapLayerControl.js';
+import { BitmapControl, NativeBitmapControl, RemoteWeatherControl, RemoteSatelliteControl } from './bitmapLayerControl.js';
 
 // 1. Initiate the PMTiles Protocol
 const protocol = new Protocol();
@@ -35,13 +35,23 @@ const map = new maplibregl.Map({
                 id: 'simple-fill0',
                 source: 'my-local-source',
                 'source-layer': 'china', // MUST match the layer name inside your PMTiles!
-                type: 'line'
+                type: 'line',
+                paint: {
+                    'line-color': '#d1dde9',
+                    'line-width': 1,
+                    'line-opacity': 0.8
+                }
             },
             {
                 id: 'simple-fill1',
                 source: 'my-local-source',
                 'source-layer': 'provinces_boundary', // MUST match the layer name inside your PMTiles!
-                type: 'line'
+                type: 'line',
+                paint: {
+                    'line-color': '#d1dde9',
+                    'line-width': 1,
+                    'line-opacity': 0.6
+                }
             },
             {
                 id: 'simple-fill2',
@@ -56,7 +66,7 @@ const map = new maplibregl.Map({
                 */
                 type: 'line',
                 paint: {
-                    'line-color': '#213f5e',
+                    'line-color': '#d1dde9',
                     'line-width': 1,
                     'line-opacity': 0.3
                 }
@@ -67,9 +77,9 @@ const map = new maplibregl.Map({
                 'source-layer': 'citys', // MUST match the layer name inside your PMTiles!
                 type: 'line',
                 paint: {
-                    'line-color': '#363a3d',
+                    'line-color': '#d1dde9',
                     'line-width': 1,
-                    'line-opacity': 0.5
+                    'line-opacity': 0.3
                 }
             }
         ]
@@ -104,7 +114,7 @@ function addGraticuleLines() {
         type: 'line',
         source: 'graticule-source',
         paint: {
-            'line-color': '#888',   // Gray lines
+            'line-color': '#dad4d4',   // Gray lines
             'line-width': 0.5,      // Thin lines
             'line-opacity': 0.5
         }
@@ -117,14 +127,14 @@ function addGraticuleLines() {
         source: 'graticule-source',
         layout: {
             'text-field': ['get', 'value'], // Display the degrees
-            'text-size': 10,
+            'text-size': 12,
             'symbol-placement': 'line',
             'text-max-angle': 30
         },
         paint: {
-            'text-color': '#888',
-            'text-halo-color': '#fff',
-            'text-halo-width': 1
+            'text-color': '#ebe1e1',
+            //'text-halo-color': '#fff',
+            //'text-halo-width': 1
         }
     });
 }
@@ -165,6 +175,8 @@ map.on('load', () => {
     // Add the native control
     //const nativeControl = new NativeBitmapControl();
     //map.addControl(nativeControl, 'top-right');
-    const remoteWeatherControl = new RemoteWeatherControl();
-    map.addControl(remoteWeatherControl, 'top-right');
+    //const remoteWeatherControl = new RemoteWeatherControl();
+    //map.addControl(remoteWeatherControl, 'top-right');
+    const remoteSatelliteControl = new RemoteSatelliteControl();
+    map.addControl(remoteSatelliteControl, 'top-right');
 })

@@ -400,4 +400,151 @@ class RemoteWeatherControl {
     }
 }
 
-export { BitmapControl, NativeBitmapControl, RemoteWeatherControl };
+class RemoteSatelliteControl {
+    onAdd(map) {
+        this.map = map;
+        this.canvasID = 'weather-canvas';
+
+        // 1. Setup Canvas (Hidden)
+        this.canvas = document.createElement('canvas');
+        this.canvas.id = this.canvasID;
+        this.canvas.width = 1000; // Must match server dimensions
+        this.canvas.height = 1000;
+        this.canvas.style.display = 'none';
+        document.body.appendChild(this.canvas);
+
+        // 2. Add Source/Layer immediately (initially empty or placeholder)
+        this.map.addSource('weather-source', {
+            type: 'canvas',
+            canvas: this.canvasID,
+            coordinates: [[112, 35], [113, 35], [113, 34], [112, 34]], // Your Bounds
+            animate: false
+        });
+
+        this.map.addLayer({
+            id: 'weather-layer',
+            type: 'raster',
+            source: 'weather-source',
+            paint: { 'raster-opacity': 0.8, 'raster-resampling': 'linear' }
+        });
+
+        // 3. Create UI Button to Load Data
+        this.container = document.createElement('div');
+        this.container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+        this.container.style.padding = '10px';
+        this.container.style.backgroundColor = 'white';
+
+        const btn = document.createElement('button');
+        btn.textContent = '☁️ Load Satellite';
+        btn.style.width = '100px';
+        btn.style.padding = '10px 30px';
+        btn.style.cursor = 'pointer';
+        btn.onclick = () => this.loadData();
+        this.container.appendChild(btn);
+
+        return this.container;
+    }
+
+    onRemove() {
+        // Cleanup DOM and Map
+        this.container.remove();
+        this.map.removeLayer('weather-layer');
+        this.map.removeSource('weather-source');
+        document.getElementById(this.canvasID).remove();
+        this.map = undefined;
+    }
+
+    async loadData() {
+        // 1. Fetch metadata
+        const serverURL = 'http://127.0.0.1:8000';
+        const metadataResponse = await fetch(`${serverURL}/weather-data/fy4b/latest`);
+        const { metadata, download_token, download_url } = await metadataResponse.json();
+
+        // 3. Resize Canvas (Critical if new data has different resolution)
+        if (this.canvas.width !== metadata.columns || this.canvas.height !== metadata.rows) {
+            this.canvas.width = metadata.columns;
+            this.canvas.height = metadata.rows;
+        }
+
+        // 1. Fetch Binary Data
+        const response = await fetch(`${serverURL}${download_url}`);
+        const buffer = await response.arrayBuffer();
+
+        // 2. Create View (Zero-Copy)
+        // This is the raw array of 1,000,000 floats
+        const data = new Uint8Array(buffer);
+
+        // 4. Paint Data
+        this.paintCanvas(data, metadata.columns, metadata.rows);
+
+        // 5. Update Map Source
+        const source = this.map.getSource('weather-source');
+        if (source) {
+            // A. Update the geographic position
+            // Convert simple Bounds [minX, minY, maxX, maxY] to Quad [TL, TR, BR, BL]
+            const quad = [
+                [metadata.minLon, metadata.maxLat], // Top Left
+                [metadata.maxLon, metadata.maxLat], // Top Right
+                [metadata.maxLon, metadata.minLat], // Bottom Right
+                [metadata.minLon, metadata.minLat]  // Bottom Left
+            ];
+
+            source.setCoordinates(quad);
+
+            // B. Trigger the texture refresh
+            source.play();
+            setTimeout(() => source.pause(), 100);
+        }
+    }
+
+    paintCanvas(data, width, height) {
+        const ctx = this.canvas.getContext('2d');
+        const imgData = ctx.createImageData(width, height);
+        const pixels = imgData.data;
+
+        // Configuration for "Cloud" look
+        const MIN_VAL = 0;
+        const MAX_VAL = 70;
+        for (let i = 0; i < data.length; i++) {
+            let val = data[i]; // The raw temperature value
+
+            // 1. Clamp values to range
+            if (val < MIN_VAL) val = MIN_VAL;
+            if (val > MAX_VAL) val = MAX_VAL;
+
+            // 2. Normalize to 0.0 - 1.0
+            const n = (val - MIN_VAL) / (MAX_VAL - MIN_VAL);
+
+            // 3. COLOR STRATEGY: "White with varying density"
+
+            // Base Color: Pure White (255, 255, 255)
+            // You can add a tiny bit of blue-grey (240, 245, 255) for "stormy" look
+            const r = 255;
+            const g = 255;
+            const b = 255;
+
+            // 4. ALPHA STRATEGY: Non-Linear "Soft" Curve
+            // n^2 or n^3 pushes the "wispy" parts to be more transparent,
+            // avoiding the "grey box" look.
+            // 255 * n * n  -> Soft edge
+            // 255 * n      -> Hard linear fog
+
+            // Logic:
+            // If n < 0.1 (very light cloud), alpha drops to near 0 instantly.
+            // If n > 0.8 (deep storm), alpha hits 255 (solid white).
+            let alpha = Math.floor(255 * (n * n));
+
+            // Optimization: Cut off invisible noise
+            if (n < 0.05) alpha = 0;
+
+            const pIdx = i * 4;
+            pixels[pIdx] = r;
+            pixels[pIdx + 1] = g;
+            pixels[pIdx + 2] = b;
+            pixels[pIdx + 3] = alpha;
+        }
+        ctx.putImageData(imgData, 0, 0);
+    }
+}
+
+export { BitmapControl, NativeBitmapControl, RemoteWeatherControl, RemoteSatelliteControl };
